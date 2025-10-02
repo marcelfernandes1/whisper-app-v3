@@ -7,6 +7,9 @@ class LiquidGlassWaveformView: NSView {
     private let barWidth: CGFloat = 5
     private let barSpacing: CGFloat = 4
 
+    // Enable vibrancy so waveforms adapt to background behind glass
+    override var allowsVibrancy: Bool { true }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
@@ -31,7 +34,7 @@ class LiquidGlassWaveformView: NSView {
 
             let bar = NSView(frame: CGRect(x: x, y: y, width: barWidth, height: initialHeight))
             bar.wantsLayer = true
-            bar.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.8).cgColor
+            bar.layer?.backgroundColor = NSColor.secondaryLabelColor.cgColor
             bar.layer?.cornerRadius = barWidth / 2
 
             addSubview(bar)

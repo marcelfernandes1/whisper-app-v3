@@ -20,7 +20,7 @@ class RecordingFloatingWindow: NSPanel {
         self.backgroundColor = .clear  // Clear background - glass provides the look
         self.isOpaque = false
         self.hasShadow = false  // NSGlassEffectView provides its own shadow
-        self.ignoresMouseEvents = true
+        self.isMovableByWindowBackground = true  // Allow dragging by clicking anywhere
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         // Setup Liquid Glass view

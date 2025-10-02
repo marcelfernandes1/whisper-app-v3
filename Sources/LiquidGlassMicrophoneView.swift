@@ -4,6 +4,9 @@ import QuartzCore
 class LiquidGlassMicrophoneView: NSView {
     private var micImageView: NSImageView!
 
+    // Enable vibrancy so icon adapts to background behind glass
+    override var allowsVibrancy: Bool { true }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
@@ -29,14 +32,22 @@ class LiquidGlassMicrophoneView: NSView {
         micImageView = NSImageView(frame: iconFrame)
         let micImage = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Microphone")!
         let config = NSImage.SymbolConfiguration(pointSize: 36, weight: .semibold)
-        micImageView.image = micImage.withSymbolConfiguration(config)
+        let configuredImage = micImage.withSymbolConfiguration(config)
+        configuredImage?.isTemplate = true  // Enable template mode for vibrancy
+        micImageView.image = configuredImage
         micImageView.contentTintColor = .labelColor
         micImageView.wantsLayer = true
 
         addSubview(micImageView)
 
-        // Start subtle breathing animation
-        startBreathingAnimation()
+        // Use Apple's native breathe effect for recording indicator (macOS 15+)
+        if #available(macOS 15.0, *) {
+            let breatheEffect: any IndefiniteSymbolEffect & SymbolEffect = .breathe
+            micImageView.addSymbolEffect(breatheEffect)
+        } else {
+            // Fallback for macOS < 15: custom breathing animation
+            startBreathingAnimation()
+        }
     }
 
     private func startBreathingAnimation() {
