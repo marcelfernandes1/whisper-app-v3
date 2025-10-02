@@ -9,8 +9,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionEngine: TranscriptionEngine!
     private var textInserter: TextInserter!
     private var floatingWindow: RecordingFloatingWindow!
+    private var toggleMenuItem: NSMenuItem!
 
     private var isRecording = false
+    private var currentAudioURL: URL?  // Store audio for retry capability
+    private var recordingStartTime: Date?
+    private var recordingTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create menu bar item
@@ -55,6 +59,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMenu() {
         let menu = NSMenu()
+
+        // Add toggle recording menu item
+        toggleMenuItem = NSMenuItem(title: "Start Recording", action: #selector(menuToggleRecording), keyEquivalent: "r")
+        toggleMenuItem.target = self
+        menu.addItem(toggleMenuItem)
+        menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(title: "Status: Ready", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -149,14 +159,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isRecording = true
         updateStatus("Recording...")
         updateIcon(recording: true)
+        toggleMenuItem.title = "Stop Recording"
 
         // Show floating animation window
         floatingWindow.show()
+
+        // Start recording timer
+        recordingStartTime = Date()
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, let startTime = self.recordingStartTime else { return }
+                let elapsed = Date().timeIntervalSince(startTime)
+                self.floatingWindow.updateDuration(elapsed)
+            }
+        }
 
         // Start audio recording
         audioRecorder.startRecording { success in
             if !success {
                 Task { @MainActor in
+                    self.recordingTimer?.invalidate()
+                    self.recordingTimer = nil
+                    self.recordingStartTime = nil
                     self.updateStatus("Error: Failed to start recording")
                     self.updateIcon(recording: false)
                     self.isRecording = false
@@ -169,33 +193,95 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func stopRecordingAndTranscribe() {
+        // Stop recording timer
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        recordingStartTime = nil
+
         updateStatus("Transcribing...")
         updateIcon(recording: false)
         isRecording = false
+        toggleMenuItem.title = "Start Recording"
 
-        // Hide floating animation window
-        floatingWindow.hide()
+        // Show processing state (don't hide window)
+        floatingWindow.showProcessing()
 
         audioRecorder.stopRecording { audioFileURL in
             guard let audioURL = audioFileURL else {
                 DispatchQueue.main.async {
                     self.updateStatus("Error: No audio recorded")
+                    self.floatingWindow.showError(
+                        message: "No audio was recorded",
+                        onRetry: {
+                            self.floatingWindow.hide()
+                        },
+                        onCancel: {
+                            self.floatingWindow.hide()
+                        }
+                    )
                 }
                 return
             }
 
+            // Save audio URL for potential retry
+            self.currentAudioURL = audioURL
+
             // Transcribe audio
-            self.transcriptionEngine.transcribe(audioURL: audioURL) { transcription in
-                DispatchQueue.main.async {
-                    if let text = transcription {
-                        self.updateStatus("Pasting text...")
-                        self.textInserter.insertText(text)
-                        self.updateStatus("Ready")
-                    } else {
-                        self.updateStatus("Error: Transcription failed")
-                    }
+            self.performTranscription(audioURL: audioURL)
+        }
+    }
+
+    private func performTranscription(audioURL: URL) {
+        transcriptionEngine.transcribe(audioURL: audioURL) { transcription in
+            DispatchQueue.main.async {
+                if let text = transcription {
+                    // Success: Insert text and hide window
+                    self.updateStatus("Pasting text...")
+                    self.textInserter.insertText(text)
+                    self.updateStatus("Ready")
+                    self.floatingWindow.hide()
+
+                    // Clean up audio file
+                    self.cleanupAudioFile()
+                } else {
+                    // Error: Show error state with retry option
+                    self.updateStatus("Error: Transcription failed")
+                    self.floatingWindow.showError(
+                        message: "Transcription failed. Check your connection and try again.",
+                        onRetry: {
+                            self.retryTranscription()
+                        },
+                        onCancel: {
+                            self.cancelTranscription()
+                        }
+                    )
                 }
             }
+        }
+    }
+
+    private func retryTranscription() {
+        guard let audioURL = currentAudioURL else {
+            floatingWindow.hide()
+            updateStatus("Error: Audio file not found")
+            return
+        }
+
+        updateStatus("Retrying transcription...")
+        floatingWindow.showProcessing()
+        performTranscription(audioURL: audioURL)
+    }
+
+    private func cancelTranscription() {
+        cleanupAudioFile()
+        floatingWindow.hide()
+        updateStatus("Ready")
+    }
+
+    private func cleanupAudioFile() {
+        if let audioURL = currentAudioURL {
+            try? FileManager.default.removeItem(at: audioURL)
+            currentAudioURL = nil
         }
     }
 
@@ -294,6 +380,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+    }
+
+    @objc private func menuToggleRecording() {
+        toggleRecording()
     }
 
     @objc private func quitApp() {

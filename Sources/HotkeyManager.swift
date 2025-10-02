@@ -11,6 +11,7 @@ class HotkeyManager: @unchecked Sendable {
     private let doubleTapThreshold: TimeInterval = 0.4 // 400ms window for double tap
     private var ctrlIsPressed = false
     private var waitingForSecondTap = false
+    private var resetTimer: DispatchWorkItem?
 
     func startMonitoring() {
         let eventMask = (1 << CGEventType.flagsChanged.rawValue)
@@ -47,6 +48,14 @@ class HotkeyManager: @unchecked Sendable {
         if let runLoopSource = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         }
+
+        cleanup()
+    }
+
+    private func cleanup() {
+        resetTimer?.cancel()
+        resetTimer = nil
+        waitingForSecondTap = false
     }
 
     private func handleEvent(event: CGEvent) {
@@ -61,6 +70,7 @@ class HotkeyManager: @unchecked Sendable {
 
             if waitingForSecondTap && timeSinceLastPress < doubleTapThreshold {
                 // Double tap detected - trigger immediately!
+                resetTimer?.cancel()  // Cancel the pending reset
                 onDoubleTap?()
                 waitingForSecondTap = false
                 lastCtrlPressTime = -999 // Reset
@@ -69,10 +79,15 @@ class HotkeyManager: @unchecked Sendable {
                 waitingForSecondTap = true
                 lastCtrlPressTime = currentTime
 
+                // Cancel any existing timer before creating new one
+                resetTimer?.cancel()
+
                 // Reset waiting flag after threshold
-                DispatchQueue.main.asyncAfter(deadline: .now() + doubleTapThreshold) { [weak self] in
+                let workItem = DispatchWorkItem { [weak self] in
                     self?.waitingForSecondTap = false
                 }
+                resetTimer = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + doubleTapThreshold, execute: workItem)
             }
         }
 
