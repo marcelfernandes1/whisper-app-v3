@@ -2,10 +2,11 @@ import Cocoa
 
 @MainActor
 class RecordingFloatingWindow: NSPanel {
-    private var animationView: RecordingAnimationView!
+    private var liquidGlassView: LiquidGlassView!
 
     init() {
-        let windowRect = NSRect(x: 0, y: 0, width: 200, height: 80)
+        // Window size for Liquid Glass floating indicator
+        let windowRect = NSRect(x: 0, y: 0, width: 200, height: 100)
 
         super.init(
             contentRect: windowRect,
@@ -16,15 +17,15 @@ class RecordingFloatingWindow: NSPanel {
 
         // Configure window to float above everything
         self.level = .floating
-        self.backgroundColor = .clear
+        self.backgroundColor = .clear  // Clear background - glass provides the look
         self.isOpaque = false
-        self.hasShadow = true
+        self.hasShadow = false  // NSGlassEffectView provides its own shadow
         self.ignoresMouseEvents = true
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        // Setup animation view
-        animationView = RecordingAnimationView(frame: windowRect)
-        self.contentView = animationView
+        // Setup Liquid Glass view
+        liquidGlassView = LiquidGlassView(frame: windowRect)
+        self.contentView = liquidGlassView
 
         // Position window at top-right of screen
         positionWindow()
@@ -51,11 +52,18 @@ class RecordingFloatingWindow: NSPanel {
         // Make window visible and order front
         self.orderFrontRegardless()
 
-        // Fade in animation
+        // Store original position
+        let finalOrigin = self.frame.origin
+
+        // Start slightly higher for floating entrance
+        self.setFrameOrigin(NSPoint(x: finalOrigin.x, y: finalOrigin.y + 20))
+
+        // Fade in + float down animation
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = 0.5
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.34, 1.56, 0.64, 1.0) // Gentle bounce
             self.animator().alphaValue = 1.0
+            self.animator().setFrameOrigin(finalOrigin)
         })
     }
 
@@ -73,6 +81,6 @@ class RecordingFloatingWindow: NSPanel {
     }
 
     func updateAudioLevel(_ level: CGFloat) {
-        animationView.updateAudioLevel(level)
+        liquidGlassView.updateAudioLevel(level)
     }
 }
