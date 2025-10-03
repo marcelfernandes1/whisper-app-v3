@@ -93,8 +93,10 @@ class TranscriptionEngine: @unchecked Sendable {
 
                 self.isInitialized = true
                 print("✅ Daemon process started (PID: \(process.processIdentifier))")
-                print("⏳ Model will load on first transcription request...")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                // Preload the model immediately
+                self.preloadModel()
 
             } catch {
                 print("❌ Failed to start daemon: \(error)")
@@ -109,6 +111,61 @@ class TranscriptionEngine: @unchecked Sendable {
             if data.count > 0, let message = String(data: data, encoding: .utf8) {
                 print("📋 Daemon: \(message.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
+        }
+    }
+
+    private func preloadModel() {
+        print("\n🔄 Preloading Whisper model '\(modelName)'...")
+
+        let request: [String: Any] = [
+            "action": "load_model",
+            "model": modelName
+        ]
+
+        guard let requestData = try? JSONSerialization.data(withJSONObject: request),
+              var requestString = String(data: requestData, encoding: .utf8) else {
+            print("❌ Failed to create preload request")
+            return
+        }
+
+        requestString += "\n"
+
+        guard let inputHandle = daemonInput else {
+            print("❌ Daemon input not available for preload")
+            return
+        }
+
+        inputHandle.write(requestString.data(using: .utf8)!)
+
+        // Read response (non-blocking, just to clear the pipe)
+        guard let outputHandle = daemonOutput else {
+            return
+        }
+
+        var responseData = Data()
+        let deadline = Date().addingTimeInterval(30.0) // 30 second timeout for model loading
+
+        while Date() < deadline {
+            let chunk = outputHandle.availableData
+            if chunk.isEmpty {
+                Thread.sleep(forTimeInterval: 0.1)
+                continue
+            }
+
+            responseData.append(chunk)
+
+            // Check if we have a complete line
+            if let str = String(data: responseData, encoding: .utf8), str.contains("\n") {
+                break
+            }
+        }
+
+        if let responseString = String(data: responseData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let responseJson = try? JSONSerialization.jsonObject(with: responseString.data(using: .utf8)!) as? [String: Any],
+           let status = responseJson["status"] as? String, status == "success" {
+            print("✅ Model preloaded successfully\n")
+        } else {
+            print("⚠️  Model preload response not received (will load on first use)\n")
         }
     }
 

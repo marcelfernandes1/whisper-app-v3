@@ -177,6 +177,20 @@ def handle_request(request):
                 "text": text
             })
 
+        elif action == "load_model":
+            model_to_use = data.get("model", "small")
+
+            if load_model(model_to_use):
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Model '{model_to_use}' loaded"
+                })
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "message": "Failed to load model"
+                })
+
         elif action == "ping":
             print(json.dumps({
                 "status": "info",
