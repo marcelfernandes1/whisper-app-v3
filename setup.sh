@@ -33,28 +33,15 @@ if ! command -v ffmpeg &>/dev/null; then
   fi
 fi
 
-# Install Whisper
-pip install --upgrade openai-whisper
+# Install dependencies from requirements.txt
+if [ -f "requirements.txt" ]; then
+  echo "Installing dependencies from requirements.txt..."
+  pip install -r requirements.txt
+else
+  # Fallback: install manually if requirements.txt missing
+  echo "Installing dependencies manually..."
+  pip install --upgrade pywhispercpp pyinstaller
+fi
 
 echo "\nSetup complete. To use this venv in the current shell:"
 echo "  source venv/bin/activate"
-
-// swift-tools-version: 6.2
-import PackageDescription
-
-let package = Package(
-    name: "WhisperTranscribe",
-    platforms: [
-        .macOS(.v13)
-    ],
-    products: [
-        .executable(name: "WhisperTranscribe", targets: ["WhisperTranscribe"])
-    ],
-    dependencies: [],
-    targets: [
-        .executableTarget(
-            name: "WhisperTranscribe",
-            path: "Sources"
-        )
-    ]
-)

@@ -1,0 +1,5 @@
+# Whisper.cpp Python bindings for fast local transcription
+pywhispercpp>=1.3.3
+
+# PyInstaller for bundling the daemon into a standalone executable
+pyinstaller>=6.0.0
