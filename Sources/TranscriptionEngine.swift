@@ -47,27 +47,29 @@ class TranscriptionEngine: @unchecked Sendable {
             print("🚀 STARTING TRANSCRIPTION DAEMON")
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            // Find the project directory
-            guard let projectPath = self.findProjectPath() else {
-                print("❌ Error: Could not find project directory")
+            // Find the bundled daemon executable in the app's Resources folder
+            guard let resourcePath = Bundle.main.resourcePath else {
+                print("❌ Error: Could not find app resources")
                 return
             }
 
-            let daemonScript = projectPath.appendingPathComponent("transcribe_daemon.py").path
-            let pythonExecutable = projectPath.appendingPathComponent("venv/bin/python3").path
+            let daemonPath = URL(fileURLWithPath: resourcePath).appendingPathComponent("transcribe_daemon").path
 
-            // Check if venv exists, otherwise use system Python
-            let python = FileManager.default.fileExists(atPath: pythonExecutable) ? pythonExecutable : "/usr/bin/env python3"
+            // Check if bundled daemon exists
+            guard FileManager.default.fileExists(atPath: daemonPath) else {
+                print("❌ Error: Bundled daemon not found at: \(daemonPath)")
+                print("   (The app may not be properly packaged)")
+                return
+            }
 
-            print("📍 Project path: \(projectPath.path)")
-            print("🐍 Python: \(python)")
-            print("📝 Daemon script: \(daemonScript)")
+            print("📍 Resource path: \(resourcePath)")
+            print("🤖 Daemon: \(daemonPath)")
             print("🧠 Model: \(self.modelName)")
 
-            // Create daemon process
+            // Create daemon process - directly execute the bundled daemon
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: python)
-            process.arguments = [daemonScript]
+            process.executableURL = URL(fileURLWithPath: daemonPath)
+            process.arguments = []
 
             let inputPipe = Pipe()
             let outputPipe = Pipe()
@@ -284,30 +286,4 @@ class TranscriptionEngine: @unchecked Sendable {
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
     }
 
-    private func findProjectPath() -> URL? {
-        // Try to find the project directory by looking for transcribe_daemon.py
-        // Start from the executable location and go up
-
-        if let executablePath = Bundle.main.executablePath {
-            var currentPath = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
-
-            // Check up to 5 levels up
-            for _ in 0..<5 {
-                let scriptPath = currentPath.appendingPathComponent("transcribe_daemon.py")
-                if FileManager.default.fileExists(atPath: scriptPath.path) {
-                    return currentPath
-                }
-                currentPath = currentPath.deletingLastPathComponent()
-            }
-        }
-
-        // Fallback: check current directory
-        let currentDir = FileManager.default.currentDirectoryPath
-        let scriptPath = URL(fileURLWithPath: currentDir).appendingPathComponent("transcribe_daemon.py")
-        if FileManager.default.fileExists(atPath: scriptPath.path) {
-            return URL(fileURLWithPath: currentDir)
-        }
-
-        return nil
-    }
 }

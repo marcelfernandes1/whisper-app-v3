@@ -10,3 +10,12 @@ DerivedData/
 *.bin
 whisper.cpp/
 venv/
+
+# Build artifacts
+build_daemon/
+dist_daemon/
+*.dmg
+*.spec
+AppIcon.iconset/
+dmg_background.png
+icon_preview.png
