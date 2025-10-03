@@ -12,40 +12,41 @@ import traceback
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
 
-# Global model variable
-model = None
-model_name = None
+# Global models cache - keeps multiple models in memory
+models = {}  # {model_name: Model instance}
 
 
 def load_model(requested_model_name):
-    """Load the Whisper model into memory"""
-    global model, model_name
+    """Load the Whisper model into memory and cache it"""
+    global models
 
     try:
         import time
         from pywhispercpp.model import Model
 
-        # Only load if not already loaded or if different model requested
-        if model is None or model_name != requested_model_name:
+        # Check if model is already cached
+        if requested_model_name in models:
             print(json.dumps({
                 "status": "info",
-                "message": f"🔄 Loading Whisper model '{requested_model_name}'..."
+                "message": f"♻️  Model '{requested_model_name}' already loaded (reusing cached)"
             }), file=sys.stderr, flush=True)
+            return True
 
-            start_time = time.time()
-            model = Model(requested_model_name, n_threads=4)
-            model_name = requested_model_name
-            load_time = time.time() - start_time
+        # Load new model and add to cache
+        print(json.dumps({
+            "status": "info",
+            "message": f"🔄 Loading Whisper model '{requested_model_name}'..."
+        }), file=sys.stderr, flush=True)
 
-            print(json.dumps({
-                "status": "ready",
-                "message": f"✅ Model '{requested_model_name}' loaded in {load_time:.2f}s and ready"
-            }), file=sys.stderr, flush=True)
-        else:
-            print(json.dumps({
-                "status": "info",
-                "message": f"♻️  Model '{requested_model_name}' already loaded (reusing)"
-            }), file=sys.stderr, flush=True)
+        start_time = time.time()
+        model = Model(requested_model_name, n_threads=4)
+        models[requested_model_name] = model
+        load_time = time.time() - start_time
+
+        print(json.dumps({
+            "status": "ready",
+            "message": f"✅ Model '{requested_model_name}' loaded in {load_time:.2f}s and cached ({len(models)} total)"
+        }), file=sys.stderr, flush=True)
 
         return True
     except Exception as e:
@@ -56,27 +57,30 @@ def load_model(requested_model_name):
         return False
 
 
-def transcribe_audio(audio_file_path, language="auto"):
+def transcribe_audio(audio_file_path, model_name, language="auto"):
     """
-    Transcribe audio file using the pre-loaded model
+    Transcribe audio file using the specified cached model
 
     Args:
         audio_file_path: Path to the audio file (WAV format)
+        model_name: Name of the model to use (must be loaded)
         language: Language code (e.g., "en", "pt", "es") or "auto" for auto-detect
 
     Returns:
         Transcribed text or None on error
     """
     import time
-    global model
+    global models
 
-    if model is None:
-        return None, "Model not loaded"
+    if model_name not in models:
+        return None, f"Model '{model_name}' not loaded"
+
+    model = models[model_name]
 
     try:
         print(json.dumps({
             "status": "info",
-            "message": f"🎯 Starting transcription (language: {language})..."
+            "message": f"🎯 Starting transcription (model: {model_name}, language: {language})..."
         }), file=sys.stderr, flush=True)
 
         start_time = time.time()
@@ -153,7 +157,7 @@ def handle_request(request):
                 })
 
             # Perform transcription
-            text, error = transcribe_audio(audio_path, language)
+            text, error = transcribe_audio(audio_path, model_to_use, language)
 
             if error:
                 return json.dumps({

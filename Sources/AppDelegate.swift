@@ -70,6 +70,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Status: Ready", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
+        // Model submenu
+        let modelItem = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
+        let modelSubmenu = NSMenu()
+
+        let models: [(name: String, code: String)] = [
+            ("Fastest", "base"),
+            ("Faster", "small"),
+            ("Most Accurate", "medium")
+        ]
+
+        for model in models {
+            let item = NSMenuItem(title: model.name, action: #selector(selectModel(_:)), keyEquivalent: "")
+            item.representedObject = model.code
+            item.target = self
+            modelSubmenu.addItem(item)
+        }
+
+        modelItem.submenu = modelSubmenu
+        menu.addItem(modelItem)
+
         // Language submenu
         let languageItem = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
         let languageSubmenu = NSMenu()
@@ -123,6 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
 
         statusItem.menu = menu
+        updateModelMenu()
         updateLanguageMenu()
         updateMicrophoneMenu()
     }
@@ -323,6 +344,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        }
+    }
+
+    @objc private func selectModel(_ sender: NSMenuItem) {
+        guard let modelCode = sender.representedObject as? String else { return }
+        transcriptionEngine.setModel(modelCode)
+        updateModelMenu()
+        updateStatus("Model set to \(sender.title)")
+
+        // Reset status after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.updateStatus("Ready")
+        }
+    }
+
+    private func updateModelMenu() {
+        let currentModel = UserDefaults.standard.string(forKey: "transcriptionModel") ?? "small"
+
+        if let menu = statusItem.menu,
+           let modelItem = menu.items.first(where: { $0.title == "Model" }),
+           let modelSubmenu = modelItem.submenu {
+            for item in modelSubmenu.items {
+                if let code = item.representedObject as? String {
+                    item.state = (code == currentModel) ? .on : .off
+                }
+            }
         }
     }
 

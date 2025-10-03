@@ -1,7 +1,15 @@
 import Foundation
 
 class TranscriptionEngine: @unchecked Sendable {
-    private let modelName = "small" // Options: tiny, base, small, medium, large
+    private var modelName: String {
+        get {
+            return UserDefaults.standard.string(forKey: "transcriptionModel") ?? "small"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "transcriptionModel")
+        }
+    }
+
     private var language: String {
         get {
             return UserDefaults.standard.string(forKey: "transcriptionLanguage") ?? "auto"
@@ -31,6 +39,10 @@ class TranscriptionEngine: @unchecked Sendable {
 
     func setLanguage(_ lang: String) {
         language = lang
+    }
+
+    func setModel(_ model: String) {
+        modelName = model
     }
 
     private func startDaemon() {
@@ -95,8 +107,8 @@ class TranscriptionEngine: @unchecked Sendable {
                 print("✅ Daemon process started (PID: \(process.processIdentifier))")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                // Preload the model immediately
-                self.preloadModel()
+                // Preload all three models immediately
+                self.preloadAllModels()
 
             } catch {
                 print("❌ Failed to start daemon: \(error)")
@@ -114,8 +126,20 @@ class TranscriptionEngine: @unchecked Sendable {
         }
     }
 
-    private func preloadModel() {
-        print("\n🔄 Preloading Whisper model '\(modelName)'...")
+    private func preloadAllModels() {
+        print("\n🔄 Preloading all Whisper models (base, small, medium)...")
+
+        let modelsToPreload = ["base", "small", "medium"]
+
+        for model in modelsToPreload {
+            preloadModel(model)
+        }
+
+        print("✅ All models preloaded and cached\n")
+    }
+
+    private func preloadModel(_ modelName: String) {
+        print("🔄 Preloading '\(modelName)' model...")
 
         let request: [String: Any] = [
             "action": "load_model",
@@ -124,7 +148,7 @@ class TranscriptionEngine: @unchecked Sendable {
 
         guard let requestData = try? JSONSerialization.data(withJSONObject: request),
               var requestString = String(data: requestData, encoding: .utf8) else {
-            print("❌ Failed to create preload request")
+            print("❌ Failed to create preload request for \(modelName)")
             return
         }
 
@@ -137,7 +161,7 @@ class TranscriptionEngine: @unchecked Sendable {
 
         inputHandle.write(requestString.data(using: .utf8)!)
 
-        // Read response (non-blocking, just to clear the pipe)
+        // Read response (blocking, to ensure model is loaded before continuing)
         guard let outputHandle = daemonOutput else {
             return
         }
@@ -163,9 +187,9 @@ class TranscriptionEngine: @unchecked Sendable {
         if let responseString = String(data: responseData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
            let responseJson = try? JSONSerialization.jsonObject(with: responseString.data(using: .utf8)!) as? [String: Any],
            let status = responseJson["status"] as? String, status == "success" {
-            print("✅ Model preloaded successfully\n")
+            print("✅ Model '\(modelName)' preloaded successfully")
         } else {
-            print("⚠️  Model preload response not received (will load on first use)\n")
+            print("⚠️  Model '\(modelName)' preload response not received (will load on first use)")
         }
     }
 
