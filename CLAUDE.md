@@ -23,12 +23,6 @@ This script:
 2. Builds the Swift app with `swift build -c release`
 3. Creates the `.app` bundle structure and copies the bundled daemon to Resources
 
-### Build DMG for Distribution
-```bash
-./create_dmg.sh              # Create basic DMG installer
-./create_pretty_dmg.sh       # Create styled DMG with custom background
-```
-
 ### Complete Distribution Build (Zero-Setup DMG)
 
 To create a fully self-contained DMG that users can install without any Python setup:
@@ -40,21 +34,36 @@ To create a fully self-contained DMG that users can install without any Python s
 # 2. Build everything (bundles daemon + builds app + creates .app bundle)
 ./build.sh
 
-# 3. Create distributable DMG
-./create_dmg.sh
+# 3. Create distributable DMG with custom background
+./create_pretty_dmg.sh
 ```
 
-The resulting `WhisperTranscribe-1.0.dmg` contains:
+The resulting `WhisperTranscribe-1.0.dmg` (14MB) contains:
 - Fully bundled `.app` with standalone daemon executable in Resources
 - All dependencies embedded (no Python installation required)
+- Styled DMG window with custom background and arrow pointing to Applications
 - Users just drag to Applications and run
 
 **What gets bundled:**
 - `WhisperTranscribe.app/Contents/MacOS/WhisperTranscribe` - Swift executable
 - `WhisperTranscribe.app/Contents/Resources/transcribe_daemon` - Standalone Python executable with all dependencies (PyInstaller bundle)
-- `WhisperTranscribe.app/Contents/Resources/AppIcon.icns` - App icon
+- `WhisperTranscribe.app/Contents/Resources/AppIcon.icns` - Liquid Glass styled app icon
 
 The daemon is created by PyInstaller as a single executable that includes Python interpreter, pywhispercpp, and all dependencies.
+
+### Regenerating Assets (Optional)
+
+If you need to regenerate the app icon or DMG background:
+
+```bash
+# Regenerate Liquid Glass app icon (creates AppIcon.icns)
+python3 create_liquid_glass_icon.py
+
+# Regenerate DMG background image (creates dmg_background.png)
+python3 create_final_dmg_background.py
+```
+
+These are already generated and committed, so you only need to run these if modifying the visual design.
 
 ### Development
 ```bash
@@ -106,7 +115,6 @@ The daemon responds with:
 
 **Python Components:**
 - `transcribe_daemon.py` - Persistent daemon using `pywhispercpp` (whisper.cpp bindings) for transcription
-- `transcribe.py` - Legacy single-use script (deprecated, kept for reference)
 
 **Dependencies:**
 - Core: `pywhispercpp>=1.3.3` for whisper.cpp Python bindings
