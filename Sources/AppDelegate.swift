@@ -55,6 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager.stopMonitoring()
+        transcriptionEngine.shutdown()
     }
 
     private func setupMenu() {

@@ -70,9 +70,8 @@ class HotkeyManager: @unchecked Sendable {
 
             if waitingForSecondTap && timeSinceLastPress < doubleTapThreshold {
                 // Double tap detected - trigger immediately!
-                resetTimer?.cancel()  // Cancel the pending reset
+                cleanup()  // Fully reset state
                 onDoubleTap?()
-                waitingForSecondTap = false
                 lastCtrlPressTime = -999 // Reset
             } else {
                 // First tap - start waiting for second
